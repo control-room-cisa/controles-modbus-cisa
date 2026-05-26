@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Luces 1B · Casa de Máquinas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                500: '#facc15',
+                600: '#eab308',
+              },
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    <main class="mx-auto max-w-3xl px-6 py-10">
+      <header class="mb-10">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-3xl font-bold tracking-tight">Luces · Casa de Máquinas 1B</h1>
+            <p class="text-sm text-slate-400 mt-1">PLC Modbus TCP · control manual y automático</p>
+          </div>
+          <div
+            id="connStatus"
+            class="flex items-center gap-2 rounded-full bg-slate-900/60 ring-1 ring-slate-800 px-3 py-1.5 text-sm"
+            title="Indicador de lectura del coil de estado (0:0016)"
+          >
+            <span class="relative inline-flex h-3 w-3">
+              <span
+                id="connPing"
+                class="absolute inline-flex h-full w-full rounded-full opacity-75 hidden"
+              ></span>
+              <span
+                id="connDot"
+                class="relative inline-flex h-3 w-3 rounded-full bg-slate-500"
+              ></span>
+            </span>
+            <span id="connText" class="text-slate-400">Conectando al PLC...</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Tarjeta de estado -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <div class="flex items-center gap-6">
+          <div
+            id="bulb"
+            class="h-24 w-24 rounded-full bg-slate-700 ring-4 ring-slate-800 flex items-center justify-center transition-all duration-300"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              class="h-12 w-12 text-slate-300"
+              fill="currentColor"
+            >
+              <path
+                d="M9 21h6v-1H9v1zm3-20a8 8 0 0 0-5 14.32V18a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2.68A8 8 0 0 0 12 1z"
+              />
+            </svg>
+          </div>
+          <div class="flex-1">
+            <p class="text-sm uppercase tracking-wide text-slate-400">Estado actual</p>
+            <p id="stateLabel" class="text-3xl font-semibold mt-1">—</p>
+            <p class="text-xs text-slate-500 mt-2 flex items-center gap-2">
+              <span id="readDot" class="h-2 w-2 rounded-full bg-slate-500"></span>
+              <span id="stateMeta">Esperando primera lectura...</span>
+            </p>
+          </div>
+          <button
+            id="btnRefresh"
+            class="rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-sm font-medium ring-1 ring-slate-700"
+          >
+            Refrescar
+          </button>
+        </div>
+      </section>
+
+      <!-- Control manual -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-1">Control manual</h2>
+        <p class="text-sm text-slate-400 mb-5">
+          Envía un pulso instantáneo a los coils <code class="text-brand-500">0:0025</code> /
+          <code class="text-brand-500">0:0026</code>.
+        </p>
+        <div
+          id="autoLockBanner"
+          class="hidden mb-4 rounded-lg bg-amber-500/10 ring-1 ring-amber-500/40 text-amber-200 px-4 py-3 text-sm flex items-center gap-3"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 flex-shrink-0" fill="currentColor">
+            <path d="M12 17a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm6-9V6a6 6 0 1 0-12 0v2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-1zM8 6a4 4 0 1 1 8 0v2H8V6z"/>
+          </svg>
+          <span>
+            <b>Modo automático activo.</b>
+            Desactiva el toggle de "Modo automático" para poder operar manualmente.
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            id="btnOn"
+            class="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-semibold px-5 py-3 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Encender
+          </button>
+          <button
+            id="btnOff"
+            class="rounded-xl bg-rose-500 hover:bg-rose-400 text-rose-950 font-semibold px-5 py-3 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Apagar
+          </button>
+        </div>
+      </section>
+
+      <!-- Modo automático -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="text-lg font-semibold">Modo automático</h2>
+            <p class="text-sm text-slate-400">
+              Horario diario para enviar los pulsos. Se persiste en disco.
+            </p>
+          </div>
+          <label class="inline-flex items-center cursor-pointer">
+            <input id="autoEnabled" type="checkbox" class="sr-only peer" />
+            <span
+              class="relative w-12 h-6 bg-slate-700 peer-checked:bg-brand-500 rounded-full transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-6"
+            ></span>
+            <span id="autoEnabledLabel" class="ml-3 text-sm text-slate-300">Desactivado</span>
+          </label>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          <label class="block">
+            <span class="text-sm text-slate-300">Hora de encendido (ON)</span>
+            <input
+              id="timeOn"
+              type="time"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+          <label class="block">
+            <span class="text-sm text-slate-300">Hora de apagado (OFF)</span>
+            <input
+              id="timeOff"
+              type="time"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-slate-400 leading-5" id="nextRuns">
+            Próximos disparos: —
+          </div>
+          <button
+            id="btnSaveSchedule"
+            class="rounded-lg bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold px-5 py-2 transition disabled:opacity-50"
+          >
+            Guardar horario
+          </button>
+        </div>
+      </section>
+
+      <!-- Diagnóstico -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <div class="flex items-start justify-between mb-3 gap-4 flex-wrap">
+          <div class="flex-1 min-w-[260px]">
+            <h2 class="text-lg font-semibold">Diagnóstico Modbus</h2>
+            <p class="text-sm text-slate-400">
+              <span class="font-semibold text-slate-300">Sondear ON/OFF</span> toma una foto
+              antes del pulso, lo manda, y vuelve a fotografiar para mostrarte
+              <em>qué bit cambió en el PLC</em>. Es la forma rápida de descubrir si la
+              dirección o el espacio (coil/input) están mal.
+            </p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button
+              id="btnProbeOn"
+              class="rounded-lg bg-emerald-700 hover:bg-emerald-600 text-emerald-50 px-4 py-2 text-sm font-medium"
+            >
+              Sondear ON
+            </button>
+            <button
+              id="btnProbeOff"
+              class="rounded-lg bg-rose-700 hover:bg-rose-600 text-rose-50 px-4 py-2 text-sm font-medium"
+            >
+              Sondear OFF
+            </button>
+            <button
+              id="btnDiag"
+              class="rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-sm font-medium ring-1 ring-slate-700"
+            >
+              Solo leer
+            </button>
+          </div>
+        </div>
+
+        <div id="probeResult" class="hidden mb-4 rounded-lg bg-slate-950/60 ring-1 ring-slate-800 p-4 text-sm"></div>
+
+        <div id="diagConfig" class="text-xs text-slate-400 mb-4 hidden font-mono"></div>
+
+        <div id="diagResults" class="hidden">
+          <h3 class="text-sm font-semibold text-slate-300 mb-2">
+            Coils (FC1) <span id="diagCoilsRange" class="text-xs font-normal text-slate-500"></span>
+          </h3>
+          <div
+            id="diagCoils"
+            class="grid grid-cols-8 sm:grid-cols-[repeat(16,minmax(0,1fr))] gap-1 mb-5 font-mono text-[10px]"
+          ></div>
+
+          <h3 class="text-sm font-semibold text-slate-300 mb-2">
+            Discrete inputs (FC2) <span id="diagInputsRange" class="text-xs font-normal text-slate-500"></span>
+          </h3>
+          <div
+            id="diagInputs"
+            class="grid grid-cols-8 sm:grid-cols-[repeat(16,minmax(0,1fr))] gap-1 mb-5 font-mono text-[10px]"
+          ></div>
+
+          <h3 class="text-sm font-semibold text-slate-300 mb-2">
+            Holding registers (FC3) <span id="diagRegsRange" class="text-xs font-normal text-slate-500"></span>
+          </h3>
+          <div
+            id="diagRegs"
+            class="grid grid-cols-4 sm:grid-cols-8 gap-1 mb-2 font-mono text-[10px]"
+          ></div>
+
+          <p class="text-xs text-slate-500 mt-4 leading-5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 align-middle"></span>
+            = bit en 1 (coils/inputs).
+            Registros se muestran como <code>hex</code> (16 bits cada uno; <code>0x0000</code> = todo en 0).
+            Las celdas con anillo
+            <span class="inline-block ring-2 ring-amber-400 rounded px-1">amarillo</span>
+            son <code>ON / OFF / STATUS</code> según la configuración actual.
+          </p>
+        </div>
+      </section>
+
+      <!-- Sondeo manual / raw write -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-1">Sondeo manual de direcciones</h2>
+        <p class="text-sm text-slate-400 mb-5 leading-6">
+          Si el comando ON/OFF no está donde esperas, prueba <em>otras</em> direcciones,
+          <em>otros Unit IDs</em>, o <em>FC15</em>. Si la luz física responde — habrás
+          encontrado el coil correcto.
+        </p>
+        <div class="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
+          <label class="block sm:col-span-2">
+            <span class="text-xs text-slate-400">Función Modbus</span>
+            <select
+              id="rawFc"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm"
+            >
+              <option value="5">FC5 · coil (pulso)</option>
+              <option value="5-hold">FC5 · coil (sin pulso, mantiene)</option>
+              <option value="15">FC15 · writeCoils (pulso múltiple)</option>
+              <option value="6">FC6 · holding register</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">Dirección</span>
+            <input
+              id="rawAddr"
+              type="number"
+              min="0"
+              max="65535"
+              value="25"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">Valor</span>
+            <input
+              id="rawValue"
+              type="number"
+              min="0"
+              max="65535"
+              value="1"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+          <label class="block">
+            <span class="text-xs text-slate-400">Unit ID</span>
+            <input
+              id="rawUnit"
+              type="number"
+              min="0"
+              max="247"
+              placeholder="(default)"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+          <button
+            id="btnRaw"
+            class="rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-5 py-2 transition"
+          >
+            Escribir y sondear
+          </button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
+          <label class="block">
+            <span class="text-xs text-slate-400">Pulso (ms)</span>
+            <input
+              id="rawPulse"
+              type="number"
+              min="50"
+              max="5000"
+              value="500"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+          <label class="block sm:col-span-2">
+            <span class="text-xs text-slate-400">Para FC15: valores separados por coma</span>
+            <input
+              id="rawValues"
+              type="text"
+              placeholder="1 (un solo coil) o 1,0,1,0,..."
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-sm font-mono"
+            />
+          </label>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">
+          Tip: si FC5 falla silenciosamente, prueba FC15 con un solo coil (valores =
+          <code>1</code>) en la misma dirección — algunos PLCs solo aceptan multi-coil.
+          Si tampoco, prueba otros Unit IDs (2, 3, 10, 247).
+        </p>
+      </section>
+
+      <!-- Observador en vivo -->
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
+        <div class="flex items-start justify-between mb-3 gap-4 flex-wrap">
+          <div class="flex-1 min-w-[260px]">
+            <h2 class="text-lg font-semibold">Observador en vivo</h2>
+            <p class="text-sm text-slate-400 leading-6">
+              Lee continuamente coils 0..255, discrete inputs 0..99 y holding
+              registers 0..127, y registra <em>cualquier cambio</em>. Mientras
+              está activo, pide a alguien que <strong>presione físicamente</strong>
+              el botón ON/OFF en la planta — verás aquí qué bit cambia y dónde
+              está la dirección real del PLC.
+            </p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button
+              id="btnWatchStart"
+              class="rounded-lg bg-sky-600 hover:bg-sky-500 text-sky-50 px-4 py-2 text-sm font-semibold"
+            >
+              Iniciar observador
+            </button>
+            <button
+              id="btnWatchStop"
+              class="rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 px-4 py-2 text-sm font-medium ring-1 ring-slate-600 disabled:opacity-50"
+              disabled
+            >
+              Detener
+            </button>
+            <button
+              id="btnWatchClear"
+              class="rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 text-sm font-medium ring-1 ring-slate-700"
+            >
+              Limpiar bitácora
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mb-3">
+          <label class="text-xs text-slate-400 flex items-center gap-2">
+            Intervalo:
+            <input
+              id="watchInterval"
+              type="number"
+              min="500"
+              max="10000"
+              step="500"
+              value="2000"
+              class="w-24 rounded bg-slate-800 ring-1 ring-slate-700 px-2 py-1 text-sm font-mono"
+            />
+            ms
+          </label>
+          <span id="watchStatus" class="text-xs text-slate-400">Detenido</span>
+        </div>
+        <div
+          id="watchLog"
+          class="rounded-lg bg-slate-950/70 ring-1 ring-slate-800 p-3 h-64 overflow-y-auto font-mono text-xs space-y-1"
+        >
+          <div class="text-slate-500">— sin eventos todavía —</div>
+        </div>
+      </section>
+
+      <!-- Toast -->
+      <div
+        id="toast"
+        class="fixed bottom-6 right-6 hidden rounded-lg bg-slate-800 ring-1 ring-slate-700 px-4 py-3 text-sm shadow-lg"
+      ></div>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      const stateLabel = $('stateLabel');
+      const stateMeta = $('stateMeta');
+      const bulb = $('bulb');
+      const connDot = $('connDot');
+      const connText = $('connText');
+      const readDot = $('readDot');
+      const connPing = $('connPing');
+      const btnOn = $('btnOn');
+      const btnOff = $('btnOff');
+      const btnRefresh = $('btnRefresh');
+      const autoLockBanner = $('autoLockBanner');
+      const btnSaveSchedule = $('btnSaveSchedule');
+      const autoEnabled = $('autoEnabled');
+      const autoEnabledLabel = $('autoEnabledLabel');
+      const timeOn = $('timeOn');
+      const timeOff = $('timeOff');
+      const nextRuns = $('nextRuns');
+      const toast = $('toast');
+
+      let toastTimer = null;
+      function showToast(msg, type = 'info') {
+        toast.textContent = msg;
+        toast.className =
+          'fixed bottom-6 right-6 rounded-lg px-4 py-3 text-sm shadow-lg ring-1 ' +
+          (type === 'error'
+            ? 'bg-rose-950 ring-rose-800 text-rose-100'
+            : type === 'success'
+              ? 'bg-emerald-950 ring-emerald-800 text-emerald-100'
+              : 'bg-slate-800 ring-slate-700 text-slate-100');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.className = 'fixed bottom-6 right-6 hidden';
+        }, 3500);
+      }
+
+      function setBulb(encendida) {
+        if (encendida) {
+          bulb.className =
+            'h-24 w-24 rounded-full bg-brand-500 ring-4 ring-brand-500/40 flex items-center justify-center transition-all duration-300 shadow-[0_0_60px_15px_rgba(250,204,21,0.45)]';
+          bulb.querySelector('svg').setAttribute('class', 'h-12 w-12 text-amber-900');
+          stateLabel.textContent = 'ENCENDIDA';
+          stateLabel.className = 'text-3xl font-semibold mt-1 text-brand-500';
+        } else {
+          bulb.className =
+            'h-24 w-24 rounded-full bg-slate-700 ring-4 ring-slate-800 flex items-center justify-center transition-all duration-300';
+          bulb.querySelector('svg').setAttribute('class', 'h-12 w-12 text-slate-300');
+          stateLabel.textContent = 'APAGADA';
+          stateLabel.className = 'text-3xl font-semibold mt-1 text-slate-300';
+        }
+      }
+
+      function setConnected(ok, msg) {
+        if (ok) {
+          connDot.className = 'relative inline-flex h-3 w-3 rounded-full bg-emerald-500';
+          connPing.className = 'absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping';
+          connText.textContent = msg || 'Lectura del PLC OK';
+          connText.className = 'text-emerald-400 font-medium';
+          readDot.className = 'h-2 w-2 rounded-full bg-emerald-500';
+        } else {
+          connDot.className = 'relative inline-flex h-3 w-3 rounded-full bg-rose-500';
+          connPing.className = 'absolute inline-flex h-full w-full rounded-full opacity-75 hidden';
+          connText.textContent = msg || 'Sin lectura del PLC';
+          connText.className = 'text-rose-400 font-medium';
+          readDot.className = 'h-2 w-2 rounded-full bg-rose-500';
+        }
+      }
+
+      function fmtFechaLocal(iso) {
+        if (!iso) return '—';
+        try {
+          return new Date(iso).toLocaleString('es-GT', { hour12: false });
+        } catch {
+          return iso;
+        }
+      }
+
+      async function api(method, path, body) {
+        const res = await fetch(path, {
+          method,
+          headers: body ? { 'Content-Type': 'application/json' } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+      }
+
+      async function refrescar() {
+        try {
+          const data = await api('GET', '/api/status');
+          setConnected(true);
+          setBulb(data.encendida);
+          stateMeta.textContent =
+            'Lectura OK · ' + new Date().toLocaleTimeString('es-GT') + ' · coil 0:0016';
+
+          const s = data.schedule;
+          // Solo sobreescribir el toggle si no hay un cambio en vuelo del usuario
+          if (!autoToggleInFlight) {
+            autoEnabled.checked = !!s.enabled;
+            autoEnabledLabel.textContent = s.enabled ? 'Activado' : 'Desactivado';
+          }
+          // Bloqueo de manual cuando auto está activo
+          const autoActivo = !!s.enabled;
+          btnOn.disabled = autoActivo;
+          btnOff.disabled = autoActivo;
+          autoLockBanner.classList.toggle('hidden', !autoActivo);
+
+          if (!timeOn.matches(':focus')) timeOn.value = s.on;
+          if (!timeOff.matches(':focus')) timeOff.value = s.off;
+          nextRuns.innerHTML =
+            'Próximo ON: <span class="text-emerald-400">' +
+            fmtFechaLocal(s.nextOn) +
+            '</span> &nbsp;·&nbsp; Próximo OFF: <span class="text-rose-400">' +
+            fmtFechaLocal(s.nextOff) +
+            '</span>' +
+            (s.lastEvent
+              ? '<br/>Último evento: <span class="' +
+                (s.lastEvent.success ? 'text-emerald-400' : 'text-rose-400') +
+                '">' +
+                s.lastEvent.type.toUpperCase() +
+                '</span> a las ' +
+                fmtFechaLocal(s.lastEvent.at) +
+                (s.lastEvent.error ? ' — error: ' + s.lastEvent.error : '')
+              : '');
+        } catch (err) {
+          setConnected(false, 'Sin lectura del PLC');
+          stateLabel.textContent = '—';
+          stateMeta.textContent = 'No se puede leer coil 0:0016 — ' + err.message;
+        }
+      }
+
+      function lock(btn) {
+        btn.disabled = true;
+        btn.dataset.prev = btn.textContent;
+        btn.textContent = '...';
+      }
+      function unlock(btn) {
+        btn.disabled = false;
+        if (btn.dataset.prev) btn.textContent = btn.dataset.prev;
+      }
+
+      btnOn.addEventListener('click', async () => {
+        lock(btnOn);
+        try {
+          await api('POST', '/api/on');
+          showToast('Pulso ON enviado', 'success');
+          setTimeout(refrescar, 400);
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btnOn);
+        }
+      });
+
+      btnOff.addEventListener('click', async () => {
+        lock(btnOff);
+        try {
+          await api('POST', '/api/off');
+          showToast('Pulso OFF enviado', 'success');
+          setTimeout(refrescar, 400);
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btnOff);
+        }
+      });
+
+      btnRefresh.addEventListener('click', refrescar);
+
+      const btnDiag = $('btnDiag');
+      const diagConfig = $('diagConfig');
+      const diagResults = $('diagResults');
+      const diagCoils = $('diagCoils');
+      const diagInputs = $('diagInputs');
+      const diagRegs = $('diagRegs');
+      const diagCoilsRange = $('diagCoilsRange');
+      const diagInputsRange = $('diagInputsRange');
+      const diagRegsRange = $('diagRegsRange');
+
+      function renderBits(container, items, marcas, resaltarAddrs) {
+        container.innerHTML = '';
+        if (!items) {
+          container.innerHTML = '<span class="text-rose-400 text-xs">— sin datos —</span>';
+          return;
+        }
+        const resaltar = new Set(resaltarAddrs || []);
+        for (const item of items) {
+          const cell = document.createElement('div');
+          const onColor = item.value
+            ? 'bg-emerald-500/80 text-emerald-950'
+            : 'bg-slate-800 text-slate-500';
+          let ring = '';
+          if (resaltar.has(item.addr)) ring = 'ring-2 ring-fuchsia-400';
+          else if (marcas.on === item.addr) ring = 'ring-2 ring-amber-400';
+          else if (marcas.off === item.addr) ring = 'ring-2 ring-amber-400';
+          else if (marcas.status === item.addr) ring = 'ring-2 ring-amber-400';
+          cell.className =
+            'flex flex-col items-center justify-center rounded px-1 py-1 ' + onColor + ' ' + ring;
+          const tag = marcas.on === item.addr ? 'ON' :
+                      marcas.off === item.addr ? 'OFF' :
+                      marcas.status === item.addr ? 'ST' : '';
+          cell.innerHTML =
+            '<span class="text-[9px] opacity-80">' + item.addr + '</span>' +
+            '<span class="font-bold">' + (item.value ? '1' : '0') + '</span>' +
+            (tag ? '<span class="text-[8px] font-bold">' + tag + '</span>' : '');
+          container.appendChild(cell);
+        }
+      }
+
+      function renderRegs(container, items, resaltarAddrs) {
+        container.innerHTML = '';
+        if (!items) {
+          container.innerHTML = '<span class="text-rose-400 text-xs">— sin datos —</span>';
+          return;
+        }
+        const resaltar = new Set(resaltarAddrs || []);
+        for (const item of items) {
+          const cell = document.createElement('div');
+          const hex = item.value.toString(16).padStart(4, '0').toUpperCase();
+          const color = item.value === 0
+            ? 'bg-slate-800 text-slate-500'
+            : 'bg-sky-700/60 text-sky-100';
+          const ring = resaltar.has(item.addr) ? 'ring-2 ring-fuchsia-400' : '';
+          cell.className =
+            'flex flex-col items-center justify-center rounded px-1 py-1 ' + color + ' ' + ring;
+          cell.innerHTML =
+            '<span class="text-[9px] opacity-80">' + item.addr + '</span>' +
+            '<span class="font-bold">0x' + hex + '</span>';
+          container.appendChild(cell);
+        }
+      }
+
+      function pintarDiag(diag, resaltarCoils, resaltarInputs, resaltarRegs) {
+        diagConfig.classList.remove('hidden');
+        diagResults.classList.remove('hidden');
+        const c = diag.coilsConfig;
+        diagConfig.innerHTML =
+          'ON=' + c.addrOn + ' · OFF=' + c.addrOff + ' · STATUS=' + c.addrStatus +
+          ' · offset=' + c.offset + ' · pulse=' + c.pulseMs + 'ms · status FC=' + c.statusReadFc +
+          ' · estado leído ahora: <span class="' +
+          (diag.estadoActual === true ? 'text-emerald-400' : diag.estadoActual === false ? 'text-slate-300' : 'text-rose-400') +
+          '">' +
+          (diag.estadoActual === true ? 'ENCENDIDO (1)' : diag.estadoActual === false ? 'APAGADO (0)' : 'ERROR · ' + (diag.estadoError || '')) +
+          '</span>';
+        const marcas = { on: c.addrOn, off: c.addrOff, status: c.addrStatus };
+        diagCoilsRange.textContent =
+          '(' + diag.rangoBits.desde + '..' + diag.rangoBits.hasta + ')' +
+          (diag.coilsError ? ' · ERROR: ' + diag.coilsError : '');
+        diagInputsRange.textContent =
+          '(' + diag.rangoBits.desde + '..' + diag.rangoBits.hasta + ')' +
+          (diag.discreteInputsError ? ' · ERROR: ' + diag.discreteInputsError : '');
+        diagRegsRange.textContent =
+          '(' + diag.rangoRegistros.desde + '..' + diag.rangoRegistros.hasta + ')' +
+          (diag.holdingRegistersError ? ' · ERROR: ' + diag.holdingRegistersError : '');
+        renderBits(diagCoils, diag.coils, marcas, resaltarCoils);
+        renderBits(diagInputs, diag.discreteInputs, marcas, resaltarInputs);
+        renderRegs(diagRegs, diag.holdingRegisters, resaltarRegs);
+      }
+
+      btnDiag.addEventListener('click', async () => {
+        lock(btnDiag);
+        try {
+          const diag = await api('GET', '/api/diag');
+          pintarDiag(diag);
+          showToast('Lectura completada', 'success');
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btnDiag);
+        }
+      });
+
+      const btnProbeOn = $('btnProbeOn');
+      const btnProbeOff = $('btnProbeOff');
+      const probeResult = $('probeResult');
+
+      function pintarProbe(sondeo) {
+        const c = sondeo.antes.coilsConfig;
+        const total = sondeo.totalCambios;
+        const bits = sondeo.rangoBits || sondeo.antes.rangoBits;
+        const regs = sondeo.rangoRegistros || sondeo.antes.rangoRegistros;
+        let html = '';
+
+        const accionColor = sondeo.accion.indexOf('ON') >= 0 ? 'text-emerald-400' :
+                            sondeo.accion.indexOf('OFF') >= 0 ? 'text-rose-400' : 'text-amber-300';
+
+        if (total === 0) {
+          html =
+            '<div class="' + accionColor + ' font-semibold mb-1">' + sondeo.accion + '</div>' +
+            '<div class="text-rose-300">⚠ Ningún cambio visible en el PLC.</div>' +
+            '<div class="text-slate-400 text-xs mt-2 leading-5">' +
+            'Rangos barridos:<br/>' +
+            '&nbsp;&nbsp;· Coils: ' + bits.desde + '..' + bits.hasta + '<br/>' +
+            '&nbsp;&nbsp;· Discrete inputs: ' + bits.desde + '..' + bits.hasta + '<br/>' +
+            '&nbsp;&nbsp;· Holding registers: ' + regs.desde + '..' + regs.hasta + '<br/><br/>' +
+            'La escritura fue aceptada por el PLC, pero no afecta nada visible en estos rangos. Sugerencias:<br/>' +
+            '· Prueba con FC6 escribiendo un valor a la <em>misma</em> dirección, por si el "0:" en realidad es un registro.<br/>' +
+            '· Prueba direcciones más altas (256, 512, 1024) usando el formulario "Sondeo manual" abajo.<br/>' +
+            '· Pregunta al integrador la dirección Modbus exacta del pulsador ON/OFF de la HMI (FC + addr + valor).' +
+            '</div>';
+          probeResult.classList.remove('hidden');
+          probeResult.innerHTML = html;
+          pintarDiag(sondeo.despues);
+          return;
+        }
+
+        html =
+          '<div class="' + accionColor + ' font-semibold mb-2">' + sondeo.accion +
+          ' · ' + total + ' cambio(s):</div>';
+        html += '<ul class="space-y-1 mb-3">';
+
+        for (const cb of sondeo.cambiosCoils) {
+          const transicion = (cb.antes ? '1' : '0') + ' → ' + (cb.despues ? '1' : '0');
+          const tc = cb.despues ? 'text-emerald-400' : 'text-slate-400';
+          html +=
+            '<li><span class="font-mono">Coil (FC1) addr ' + cb.addr + '</span> · ' +
+            '<span class="' + tc + ' font-mono font-bold">' + transicion + '</span></li>';
+        }
+        for (const cb of sondeo.cambiosInputs) {
+          const transicion = (cb.antes ? '1' : '0') + ' → ' + (cb.despues ? '1' : '0');
+          const tc = cb.despues ? 'text-emerald-400' : 'text-slate-400';
+          html +=
+            '<li><span class="font-mono">Discrete Input (FC2) addr ' + cb.addr + '</span> · ' +
+            '<span class="' + tc + ' font-mono font-bold">' + transicion + '</span></li>';
+        }
+        for (const cr of sondeo.cambiosRegistros) {
+          const hA = cr.antes.toString(16).padStart(4, '0').toUpperCase();
+          const hD = cr.despues.toString(16).padStart(4, '0').toUpperCase();
+          const bitsTxt = cr.bitsCambiados.length
+            ? ' · bits: ' + cr.bitsCambiados.join(',')
+            : '';
+          html +=
+            '<li><span class="font-mono">Holding Reg (FC3) addr ' + cr.addr + '</span> · ' +
+            '<span class="text-sky-400 font-mono font-bold">0x' + hA + ' → 0x' + hD + '</span>' +
+            '<span class="text-xs text-slate-400">' + bitsTxt + '</span></li>';
+        }
+        html += '</ul>';
+
+        // Recomendaciones automáticas
+        const recs = [];
+        for (const cb of sondeo.cambiosCoils) {
+          if (cb.addr === c.addrStatus) {
+            recs.push('· ✓ El coil STATUS (' + cb.addr + ') reaccionó. Configuración FC1 correcta.');
+          } else {
+            const diff = cb.addr - c.addrStatus;
+            recs.push(
+              '· Se activó <b>coil ' + cb.addr + '</b>. Si quieres que el indicador refleje ese bit, ' +
+              (Math.abs(diff) <= 4 ? 'pon <code>COIL_OFFSET=' + diff + '</code> ' : 'pon <code>COIL_STATUS=' + cb.addr + '</code> ') +
+              'en .env.',
+            );
+          }
+        }
+        for (const cb of sondeo.cambiosInputs) {
+          recs.push(
+            '· Se activó <b>discrete input ' + cb.addr + '</b>. Pon <code>STATUS_READ_FC=2</code>' +
+            (cb.addr !== c.addrStatus ? ' y <code>COIL_STATUS=' + cb.addr + '</code>' : '') +
+            ' en .env para leerlo como estado.',
+          );
+        }
+        for (const cr of sondeo.cambiosRegistros) {
+          recs.push(
+            '· Cambió <b>holding register ' + cr.addr + '</b>. El estado de las luces está en ' +
+            'el espacio de registros, no en coils. Esto requiere ajustar el código (no hay variable de .env todavía).',
+          );
+        }
+        if (recs.length) {
+          html += '<div class="text-amber-300 text-xs leading-6 border-t border-slate-700 pt-2">' +
+            '<b>Sugerencia automática:</b><br/>' + recs.join('<br/>') + '</div>';
+        }
+
+        probeResult.classList.remove('hidden');
+        probeResult.innerHTML = html;
+
+        // Resalta en magenta los addresses que cambiaron
+        const resCoils = sondeo.cambiosCoils.map(x => x.addr);
+        const resInputs = sondeo.cambiosInputs.map(x => x.addr);
+        const resRegs = sondeo.cambiosRegistros.map(x => x.addr);
+        pintarDiag(sondeo.despues, resCoils, resInputs, resRegs);
+      }
+
+      async function ejecutarProbe(accion, btn) {
+        lock(btn);
+        try {
+          const sondeo = await api('POST', '/api/probe/' + accion);
+          pintarProbe(sondeo);
+          refrescar();
+          showToast('Sondeo ' + accion.toUpperCase() + ' completado · ' + sondeo.totalCambios + ' cambios', sondeo.totalCambios > 0 ? 'success' : 'error');
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btn);
+        }
+      }
+
+      btnProbeOn.addEventListener('click', () => ejecutarProbe('on', btnProbeOn));
+      btnProbeOff.addEventListener('click', () => ejecutarProbe('off', btnProbeOff));
+
+      // === Sondeo manual ===
+      const btnRaw = $('btnRaw');
+      const rawFc = $('rawFc');
+      const rawAddr = $('rawAddr');
+      const rawValue = $('rawValue');
+      const rawPulse = $('rawPulse');
+
+      const rawUnit = $('rawUnit');
+      const rawValues = $('rawValues');
+
+      btnRaw.addEventListener('click', async () => {
+        const fcSel = rawFc.value;
+        const addr = Number(rawAddr.value);
+        const value = Number(rawValue.value);
+        const pulsoMs = Number(rawPulse.value);
+        const unitRaw = rawUnit.value.trim();
+
+        const body = { addr };
+        if (fcSel === '5') {
+          body.fc = 5;
+          body.value = value !== 0;
+          body.pulso = true;
+          body.pulsoMs = pulsoMs;
+        } else if (fcSel === '5-hold') {
+          body.fc = 5;
+          body.value = value !== 0;
+          body.pulso = false;
+        } else if (fcSel === '15') {
+          body.fc = 15;
+          const txt = rawValues.value.trim() || String(value);
+          const arr = txt.split(',').map((s) => Number(s.trim()) !== 0);
+          body.values = arr;
+          body.pulso = true;
+          body.pulsoMs = pulsoMs;
+        } else {
+          body.fc = 6;
+          body.value = value;
+        }
+        if (unitRaw !== '') body.unitId = Number(unitRaw);
+
+        lock(btnRaw);
+        try {
+          const sondeo = await api('POST', '/api/probe-raw', body);
+          pintarProbe(sondeo);
+          refrescar();
+          showToast(
+            'Sondeo manual completado · ' + sondeo.totalCambios + ' cambios',
+            sondeo.totalCambios > 0 ? 'success' : 'error',
+          );
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btnRaw);
+        }
+      });
+
+      // === Observador en vivo ===
+      const btnWatchStart = $('btnWatchStart');
+      const btnWatchStop = $('btnWatchStop');
+      const btnWatchClear = $('btnWatchClear');
+      const watchInterval = $('watchInterval');
+      const watchStatus = $('watchStatus');
+      const watchLog = $('watchLog');
+
+      let watchTimer = null;
+      let watchPrev = null;
+      let watchTickN = 0;
+
+      function logWatch(html, klass) {
+        const time = new Date().toLocaleTimeString('es-GT');
+        const line = document.createElement('div');
+        line.className = klass || 'text-slate-300';
+        line.innerHTML =
+          '<span class="text-slate-500">[' + time + ']</span> ' + html;
+        if (watchLog.firstChild && watchLog.firstChild.classList && watchLog.firstChild.classList.contains('text-slate-500') && watchLog.firstChild.textContent === '— sin eventos todavía —') {
+          watchLog.innerHTML = '';
+        }
+        watchLog.insertBefore(line, watchLog.firstChild);
+        while (watchLog.children.length > 200) {
+          watchLog.removeChild(watchLog.lastChild);
+        }
+      }
+
+      function diffSnapshot(antes, despues) {
+        const cambios = [];
+        function diff(a, b, tabla) {
+          if (!a || !b) return;
+          const len = Math.min(a.length, b.length);
+          for (let i = 0; i < len; i++) {
+            if (a[i].value !== b[i].value) {
+              cambios.push({ tabla, addr: a[i].addr, antes: a[i].value, despues: b[i].value });
+            }
+          }
+        }
+        diff(antes.coils, despues.coils, 'coils');
+        diff(antes.discreteInputs, despues.discreteInputs, 'discreteInputs');
+        diff(antes.holdingRegisters, despues.holdingRegisters, 'holdingRegisters');
+        return cambios;
+      }
+
+      async function watchTick() {
+        watchTickN++;
+        try {
+          const diag = await api('GET', '/api/diag');
+          if (watchPrev) {
+            const cambios = diffSnapshot(watchPrev, diag);
+            if (cambios.length > 0) {
+              for (const c of cambios) {
+                const espacio =
+                  c.tabla === 'coils' ? 'Coil (FC1)' :
+                  c.tabla === 'discreteInputs' ? 'Discrete Input (FC2)' :
+                  'Holding Reg (FC3)';
+                const trans =
+                  c.tabla === 'holdingRegisters'
+                    ? '0x' + c.antes.toString(16).padStart(4, '0').toUpperCase() +
+                      ' → 0x' + c.despues.toString(16).padStart(4, '0').toUpperCase()
+                    : (c.antes ? '1' : '0') + ' → ' + (c.despues ? '1' : '0');
+                const color =
+                  c.tabla === 'holdingRegisters' ? 'text-sky-400' :
+                  c.despues ? 'text-emerald-400' : 'text-rose-400';
+                logWatch(
+                  '<span class="' + color + '">▲</span> ' +
+                  espacio + ' addr <b>' + c.addr + '</b> · ' +
+                  '<span class="' + color + ' font-bold">' + trans + '</span>',
+                  'text-slate-200',
+                );
+              }
+            }
+          } else {
+            logWatch('Snapshot inicial capturado (' + diag.coils.length + ' coils, ' +
+              (diag.discreteInputs ? diag.discreteInputs.length : 0) + ' inputs, ' +
+              (diag.holdingRegisters ? diag.holdingRegisters.length : 0) + ' regs)',
+              'text-sky-400');
+          }
+          watchPrev = diag;
+          watchStatus.textContent = 'Activo · tick #' + watchTickN + ' · ' + new Date().toLocaleTimeString('es-GT');
+          watchStatus.className = 'text-xs text-emerald-400';
+        } catch (err) {
+          logWatch('Error de lectura: ' + err.message, 'text-rose-400');
+        }
+      }
+
+      btnWatchStart.addEventListener('click', () => {
+        if (watchTimer) return;
+        watchPrev = null;
+        watchTickN = 0;
+        const interval = Math.max(500, Math.min(10000, Number(watchInterval.value) || 2000));
+        logWatch('Iniciando observador · intervalo ' + interval + 'ms', 'text-sky-400');
+        watchTick();
+        watchTimer = setInterval(watchTick, interval);
+        btnWatchStart.disabled = true;
+        btnWatchStop.disabled = false;
+        watchStatus.textContent = 'Activo';
+        watchStatus.className = 'text-xs text-emerald-400';
+      });
+
+      btnWatchStop.addEventListener('click', () => {
+        if (!watchTimer) return;
+        clearInterval(watchTimer);
+        watchTimer = null;
+        btnWatchStart.disabled = false;
+        btnWatchStop.disabled = true;
+        watchStatus.textContent = 'Detenido';
+        watchStatus.className = 'text-xs text-slate-400';
+        logWatch('Observador detenido', 'text-slate-400');
+      });
+
+      btnWatchClear.addEventListener('click', () => {
+        watchLog.innerHTML = '<div class="text-slate-500">— sin eventos todavía —</div>';
+      });
+
+      // Persistir el cambio de auto al instante (sin esperar "Guardar")
+      let autoToggleInFlight = false;
+      autoEnabled.addEventListener('change', async () => {
+        if (autoToggleInFlight) return;
+        const nuevoEstado = autoEnabled.checked;
+        autoEnabledLabel.textContent = nuevoEstado ? 'Activado' : 'Desactivado';
+        autoToggleInFlight = true;
+        autoEnabled.disabled = true;
+        try {
+          await api('PUT', '/api/schedule', { enabled: nuevoEstado });
+          showToast(
+            nuevoEstado ? 'Modo automático activado' : 'Modo automático desactivado',
+            'success',
+          );
+          refrescar();
+        } catch (err) {
+          autoEnabled.checked = !nuevoEstado;
+          autoEnabledLabel.textContent = !nuevoEstado ? 'Activado' : 'Desactivado';
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          autoEnabled.disabled = false;
+          autoToggleInFlight = false;
+        }
+      });
+
+      btnSaveSchedule.addEventListener('click', async () => {
+        lock(btnSaveSchedule);
+        try {
+          // Solo guardamos las horas; el estado auto on/off se persiste con el toggle.
+          await api('PUT', '/api/schedule', {
+            on: timeOn.value,
+            off: timeOff.value,
+          });
+          showToast('Horario guardado', 'success');
+          refrescar();
+        } catch (err) {
+          showToast('Error: ' + err.message, 'error');
+        } finally {
+          unlock(btnSaveSchedule);
+        }
+      });
+
+      refrescar();
+      setInterval(refrescar, 5000);
+    </script>
+  </body>
+</html>
