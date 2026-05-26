@@ -20,13 +20,13 @@
       };
     </script>
   </head>
-  <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
-    <main class="mx-auto max-w-xl px-6 py-10">
-      <header class="mb-8">
+  <body class="bg-slate-950 text-slate-100 antialiased">
+    <main class="mx-auto max-w-xl px-6 py-6">
+      <header class="mb-5">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <h1 class="text-2xl font-bold tracking-tight">Luces · Casa de Máquinas 1B</h1>
-            <p class="text-sm text-slate-400 mt-1">Control manual y automático</p>
+            <h1 class="text-xl font-bold tracking-tight">Luces · Casa de Máquinas 1B</h1>
+            <p class="text-xs text-slate-400 mt-0.5">Control manual y automático</p>
           </div>
           <div
             id="connStatus"
@@ -49,8 +49,8 @@
       </header>
 
       <!-- Tarjeta de control de luces -->
-      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
-        <div class="flex items-center gap-5">
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-5 mb-4">
+        <div class="flex items-center gap-4">
           <div
             id="bulb"
             class="h-14 w-14 rounded-full bg-slate-700 ring-2 ring-slate-800 flex items-center justify-center transition-all duration-300 flex-shrink-0"
@@ -80,11 +80,11 @@
       </section>
 
       <!-- Modo automático -->
-      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-6 mb-6">
-        <div class="flex items-center justify-between mb-5">
+      <section class="rounded-2xl bg-slate-900/70 ring-1 ring-slate-800 p-5">
+        <div class="flex items-center justify-between mb-4">
           <div>
-            <h2 class="text-lg font-semibold">Modo automático</h2>
-            <p id="autoEnabledLabel" class="text-sm text-slate-400">Desactivado</p>
+            <h2 class="text-base font-semibold">Modo automático</h2>
+            <p id="autoEnabledLabel" class="text-xs text-slate-400">Desactivado</p>
           </div>
           <label class="inline-flex items-center cursor-pointer">
             <input id="autoEnabled" type="checkbox" class="sr-only peer" />
@@ -94,30 +94,30 @@
           </label>
         </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-5">
+        <div class="grid grid-cols-2 gap-3 mb-4">
           <label class="block">
-            <span class="text-sm text-slate-300">Encendido</span>
+            <span class="text-xs text-slate-300">Encendido</span>
             <input
               id="timeOn"
               type="time"
-              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-1.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </label>
           <label class="block">
-            <span class="text-sm text-slate-300">Apagado</span>
+            <span class="text-xs text-slate-300">Apagado</span>
             <input
               id="timeOff"
               type="time"
-              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-2 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
+              class="mt-1 w-full rounded-lg bg-slate-800 ring-1 ring-slate-700 px-3 py-1.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </label>
         </div>
 
         <div class="flex items-center justify-between gap-3">
-          <div class="text-xs text-slate-400 leading-5" id="nextRuns">—</div>
+          <div class="text-[11px] text-slate-400 leading-4" id="nextRuns">—</div>
           <button
             id="btnSaveSchedule"
-            class="rounded-lg bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold px-5 py-2 transition disabled:opacity-50"
+            class="rounded-lg bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold px-4 py-1.5 text-sm transition disabled:opacity-50"
           >
             Guardar
           </button>
